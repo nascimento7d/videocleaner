@@ -2,7 +2,6 @@ import os
 import uuid
 import subprocess
 import threading
-import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from werkzeug.utils import secure_filename
@@ -70,38 +69,34 @@ def process_video(job_id, input_path, basename, output_dir):
         micro = now.strftime("%f")[:3]
         ct_base = now.strftime("%Y-%m-%dT%H:%M:")
 
-        enc_tags = [
-            ("Lavf59.16.100", "isom", "0"),
-            ("HandBrake 1.6.1 2023060300", "mp42", "512"),
-            ("DaVinci Resolve 18.5.0.42", "M4V ", "1"),
-        ]
-
         versions = [
             {
                 "name": "v1", "label": "Leve",
                 "args": ["-crf", "20", "-preset", "medium"],
                 "vf": f"{scale_filter}format=yuv420p",
                 "af": None, "ss": None,
+                "ct_offset": 1,
             },
             {
                 "name": "v2", "label": "Medio",
                 "args": ["-crf", "22", "-preset", "medium", "-b:v", "5M"],
                 "vf": f"{scale_filter}crop={out_w-8}:{out_h-8}:4:4,scale={out_w}:{out_h}:flags=lanczos,eq=brightness=0.02:saturation=1.03:contrast=1.02,format=yuv420p",
                 "af": "volume=0.98", "ss": "0.05",
+                "ct_offset": 3,
             },
             {
                 "name": "v3", "label": "Forte",
                 "args": ["-crf", "23", "-preset", "slow", "-b:v", "4500k"],
                 "vf": f"{scale_filter}crop={out_w-16}:{out_h-16}:8:8,scale=iw*1.015:ih*1.015:flags=lanczos,crop={out_w}:{out_h},eq=brightness=0.03:saturation=1.05:gamma=1.02,format=yuv420p",
                 "af": "atempo=1.005,volume=0.97", "ss": "0.1",
+                "ct_offset": 7,
             },
         ]
 
         outputs = []
 
         for i, ver in enumerate(versions):
-            enc, brand, minor = enc_tags[i]
-            sec_offset = (now.second + (i+1)*2) % 60
+            sec_offset = (now.second + ver['ct_offset']) % 60
             ct = f"{ct_base}{sec_offset:02d}.{micro}Z"
 
             out_filename = f"{basename}_{ver['name']}.mp4"
@@ -120,17 +115,13 @@ def process_video(job_id, input_path, basename, output_dir):
                 cmd += ["-af", ver['af']]
             cmd += ["-movflags", "+faststart"]
             cmd += ["-metadata", f"creation_time={ct}"]
-            cmd += ["-metadata", f"encoder={enc}"]
-            cmd += ["-metadata", f"major_brand={brand}"]
-            cmd += ["-metadata", f"minor_version={minor}"]
-            cmd += [out_path]
 
             log(f"[{i+1}/3] Processando {ver['label']}...")
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode != 0:
                 job['status'] = 'error'
-                job['error'] = f"Erro na versao {ver['name']}: {result.stderr[-500:]}"
+                job['error'] = result.stderr[-800:]
                 return
 
             size = os.path.getsize(out_path)
