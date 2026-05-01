@@ -29,7 +29,7 @@ def get_resolution(filepath):
             parts = line.split(',')
             if len(parts) == 2:
                 return int(parts[0].strip()), int(parts[1].strip())
-    except Exception as e:
+    except:
         pass
     return 1080, 1080
 
@@ -46,26 +46,23 @@ def build_scale(w, h):
         return 'scale=-2:1080:flags=lanczos,', ow, oh
 
 def run_ffmpeg(cmd, job, label):
-    """Run ffmpeg command, return True on success"""
     job['log'].append(f'Rodando {label}...')
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if result.returncode != 0:
-            # Extract last meaningful error line
-            err_lines = [l for l in result.stderr.split('\n') if l.strip() and not l.startswith('[')]
-            err = err_lines[-1] if err_lines else result.stderr[-200:]
+            err_lines = [l for l in result.stderr.split('\n') 
+                        if l.strip() and ('Error' in l or 'Invalid' in l or 'failed' in l)]
+            err = err_lines[-1] if err_lines else result.stderr[-300:]
             job['log'].append(f'[ERRO] {label}: {err}')
             job['status'] = 'error'
             job['error'] = err
             return False
         return True
     except subprocess.TimeoutExpired:
-        job['log'].append(f'[ERRO] {label}: timeout')
         job['status'] = 'error'
-        job['error'] = 'Timeout no processamento'
+        job['error'] = 'Timeout'
         return False
     except Exception as e:
-        job['log'].append(f'[ERRO] {label}: {str(e)}')
         job['status'] = 'error'
         job['error'] = str(e)
         return False
@@ -90,7 +87,6 @@ def process_video(job_id, input_path, basename, output_dir):
         ms = now.strftime('%f')[:3]
         base_ct = now.strftime('%Y-%m-%dT%H:%M:')
 
-        # Build output paths explicitly
         out1 = os.path.join(output_dir, f'{basename}_v1.mp4')
         out2 = os.path.join(output_dir, f'{basename}_v2.mp4')
         out3 = os.path.join(output_dir, f'{basename}_v3.mp4')
@@ -99,62 +95,55 @@ def process_video(job_id, input_path, basename, output_dir):
         ct2 = f"{base_ct}{(now.second+3)%60:02d}.{ms}Z"
         ct3 = f"{base_ct}{(now.second+7)%60:02d}.{ms}Z"
 
+        # V1: scale + clean encode
         vf1 = f'{sf}format=yuv420p'
+
+        # V2: scale + crop 4px borders + eq
         vf2 = f'{sf}crop={ow-8}:{oh-8}:4:4,scale={ow}:{oh}:flags=lanczos,eq=brightness=0.02:saturation=1.03:contrast=1.02,format=yuv420p'
-        vf3 = f'{sf}crop={ow-16}:{oh-16}:8:8,scale=iw*1.015:ih*1.015:flags=lanczos,crop={ow}:{oh},eq=brightness=0.03:saturation=1.05:gamma=1.02,format=yuv420p'
+
+        # V3: scale + crop 8px borders + scale back + eq (no zoom to avoid dimension issues)
+        vf3 = f'{sf}crop={ow-16}:{oh-16}:8:8,scale={ow}:{oh}:flags=lanczos,eq=brightness=0.03:saturation=1.05:gamma=1.02,format=yuv420p'
 
         # V1 - Leve
         job['log'].append('[1/3] Processando Leve...')
-        cmd1 = [
-            'ffmpeg', '-y',
-            '-i', input_path,
-            '-map_metadata', '-1', '-map_chapters', '-1',
-            '-vf', vf1,
-            '-c:v', 'libx264', '-crf', '20', '-preset', 'medium',
-            '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-movflags', '+faststart',
-            '-metadata', f'creation_time={ct1}',
-            out1
-        ]
+        cmd1 = ['ffmpeg', '-y', '-i', input_path,
+                '-map_metadata', '-1', '-map_chapters', '-1',
+                '-vf', vf1,
+                '-c:v', 'libx264', '-crf', '20', '-preset', 'medium',
+                '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
+                '-movflags', '+faststart',
+                '-metadata', f'creation_time={ct1}',
+                out1]
         if not run_ffmpeg(cmd1, job, 'V1'): return
         job['progress'] = 33
         job['log'].append(f'[OK] Leve: {os.path.basename(out1)} ({os.path.getsize(out1)//1024}KB)')
 
         # V2 - Medio
         job['log'].append('[2/3] Processando Medio...')
-        cmd2 = [
-            'ffmpeg', '-y',
-            '-ss', '0.05', '-i', input_path,
-            '-map_metadata', '-1', '-map_chapters', '-1',
-            '-vf', vf2,
-            '-c:v', 'libx264', '-crf', '22', '-preset', 'medium', '-b:v', '5M',
-            '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-af', 'volume=0.98',
-            '-movflags', '+faststart',
-            '-metadata', f'creation_time={ct2}',
-            out2
-        ]
+        cmd2 = ['ffmpeg', '-y', '-ss', '0.05', '-i', input_path,
+                '-map_metadata', '-1', '-map_chapters', '-1',
+                '-vf', vf2,
+                '-c:v', 'libx264', '-crf', '22', '-preset', 'medium', '-b:v', '5M',
+                '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
+                '-af', 'volume=0.98',
+                '-movflags', '+faststart',
+                '-metadata', f'creation_time={ct2}',
+                out2]
         if not run_ffmpeg(cmd2, job, 'V2'): return
         job['progress'] = 66
         job['log'].append(f'[OK] Medio: {os.path.basename(out2)} ({os.path.getsize(out2)//1024}KB)')
 
         # V3 - Forte
         job['log'].append('[3/3] Processando Forte...')
-        cmd3 = [
-            'ffmpeg', '-y',
-            '-ss', '0.1', '-i', input_path,
-            '-map_metadata', '-1', '-map_chapters', '-1',
-            '-vf', vf3,
-            '-c:v', 'libx264', '-crf', '23', '-preset', 'slow', '-b:v', '4500k',
-            '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-af', 'atempo=1.005,volume=0.97',
-            '-movflags', '+faststart',
-            '-metadata', f'creation_time={ct3}',
-            out3
-        ]
+        cmd3 = ['ffmpeg', '-y', '-ss', '0.1', '-i', input_path,
+                '-map_metadata', '-1', '-map_chapters', '-1',
+                '-vf', vf3,
+                '-c:v', 'libx264', '-crf', '23', '-preset', 'slow', '-b:v', '4500k',
+                '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
+                '-af', 'volume=0.97',
+                '-movflags', '+faststart',
+                '-metadata', f'creation_time={ct3}',
+                out3]
         if not run_ffmpeg(cmd3, job, 'V3'): return
         job['progress'] = 100
         job['log'].append(f'[OK] Forte: {os.path.basename(out3)} ({os.path.getsize(out3)//1024}KB)')
@@ -163,7 +152,7 @@ def process_video(job_id, input_path, basename, output_dir):
         job['resolution_in'] = f'{w}x{h}'
         job['resolution_out'] = f'{ow}x{oh}'
         job['outputs'] = [
-            {'name': 'v1', 'label': 'Leve', 'filename': os.path.basename(out1), 'size': os.path.getsize(out1), 'resolution': f'{ow}x{oh}'},
+            {'name': 'v1', 'label': 'Leve',  'filename': os.path.basename(out1), 'size': os.path.getsize(out1), 'resolution': f'{ow}x{oh}'},
             {'name': 'v2', 'label': 'Medio', 'filename': os.path.basename(out2), 'size': os.path.getsize(out2), 'resolution': f'{ow}x{oh}'},
             {'name': 'v3', 'label': 'Forte', 'filename': os.path.basename(out3), 'size': os.path.getsize(out3), 'resolution': f'{ow}x{oh}'},
         ]
@@ -201,12 +190,9 @@ def upload():
     os.makedirs(output_dir, exist_ok=True)
 
     jobs[job_id] = {
-        'id': job_id,
-        'filename': safe_name,
-        'status': 'queued',
-        'progress': 0,
-        'log': [],
-        'outputs': [],
+        'id': job_id, 'filename': safe_name,
+        'status': 'queued', 'progress': 0,
+        'log': [], 'outputs': [],
         'created_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
     }
 
