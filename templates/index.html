@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Cleaner — Meta Ads Ready</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #00ff88;
+    --accent2: #7c3aed;
+    --accent3: #f59e0b;
+    --red: #ef4444;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --card: #13131e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span {
+    color: var(--accent);
+  }
+
+  .badge {
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+  }
+
+  /* Upload zone */
+  .upload-section {
+    margin-bottom: 48px;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--card);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,255,136,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,255,136,0.04);
+  }
+
+  .upload-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .upload-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .upload-sub {
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+
+  .btn-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 28px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-upload:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0,255,136,0.3);
+  }
+
+  #fileInput { display: none; }
+
+  /* Processing card */
+  .processing-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 16px;
+    display: none;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .processing-card.active { display: block; }
+
+  .proc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .proc-filename {
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .proc-filename .ext {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg3);
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: var(--muted);
+  }
+
+  .status-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .status-queued { background: rgba(107,107,128,0.2); color: var(--muted); }
+  .status-processing { background: rgba(245,158,11,0.15); color: var(--accent3); border: 1px solid rgba(245,158,11,0.3); }
+  .status-done { background: rgba(0,255,136,0.1); color: var(--accent); border: 1px solid rgba(0,255,136,0.3); }
+  .status-error { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+  /* Progress bar */
+  .progress-wrap {
+    background: var(--bg3);
+    border-radius: 4px;
+    height: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #00d4ff);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+    width: 0%;
+    position: relative;
+  }
+
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+    animation: shimmer 1s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Log */
+  .proc-log {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    line-height: 1.7;
+  }
+
+  .proc-log .log-ok { color: var(--accent); }
+  .proc-log .log-warn { color: var(--accent3); }
+  .proc-log .log-err { color: var(--red); }
+
+  /* Output files */
+  .outputs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .output-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .output-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  .output-v1 .output-label { color: var(--accent); }
+  .output-v2 .output-label { color: #00d4ff; }
+  .output-v3 .output-label { color: var(--accent2); filter: brightness(1.5); }
+
+  .output-name {
+    font-size: 13px;
+    color: var(--text);
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  .output-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .btn-download {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(0,255,136,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0,255,136,0.25);
+    border-radius: 6px;
+    padding: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    margin-top: 4px;
+  }
+
+  .btn-download:hover {
+    background: rgba(0,255,136,0.2);
+    border-color: var(--accent);
+  }
+
+  /* Jobs history */
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Resolution info */
+  .res-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .res-arrow { color: var(--accent); }
+  .res-after { color: var(--accent); font-weight: 600; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .outputs-grid { grid-template-columns: 1fr; }
+    header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">Video<span>Cleaner</span></div>
+    </div>
+    <div class="badge">META ADS READY</div>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-section">
+    <div class="upload-zone" id="dropZone">
+      <span class="upload-icon">🎬</span>
+      <div class="upload-title">Arraste o vídeo aqui</div>
+      <div class="upload-sub">.mp4 · .mov · .avi · .mkv · até 500MB</div>
+      <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
+        ↑ Selecionar arquivo
+      </button>
+      <input type="file" id="fileInput" accept=".mp4,.mov,.avi,.mkv">
+    </div>
+  </div>
+
+  <!-- Processing card -->
+  <div class="processing-card" id="processingCard">
+    <div class="proc-header">
+      <div class="proc-filename">
+        <span id="procFilename">—</span>
+        <span class="ext" id="procExt">MP4</span>
+      </div>
+      <div class="status-badge status-queued" id="statusBadge">AGUARDANDO</div>
+    </div>
+
+    <div class="res-info" id="resInfo" style="display:none">
+      <span id="resIn">—</span>
+      <span class="res-arrow">→</span>
+      <span class="res-after" id="resOut">—</span>
+      <span>· Meta Ads OK ✓</span>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="proc-log" id="procLog">Iniciando...</div>
+
+    <div class="outputs-grid" id="outputsGrid" style="display:none"></div>
+  </div>
+
+</div>
+
+<script>
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const processingCard = document.getElementById('processingCard');
+  let pollInterval = null;
+
+  // Drag and drop
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+  });
+
+  function uploadFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['mp4','mov','avi','mkv'].includes(ext)) {
+      alert('Formato nao suportado. Use: mp4, mov, avi, mkv');
+      return;
+    }
+
+    // Show card
+    processingCard.classList.add('active');
+    document.getElementById('procFilename').textContent = file.name.replace(/\.[^.]+$/, '');
+    document.getElementById('procExt').textContent = ext.toUpperCase();
+    document.getElementById('statusBadge').className = 'status-badge status-queued';
+    document.getElementById('statusBadge').textContent = 'ENVIANDO';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('procLog').innerHTML = 'Enviando arquivo...';
+    document.getElementById('outputsGrid').style.display = 'none';
+    document.getElementById('resInfo').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/upload', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { showError(data.error); return; }
+        pollStatus(data.job_id);
+      })
+      .catch(e => showError(e.message));
+  }
+
+  function pollStatus(jobId) {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(() => {
+      fetch(`/status/${jobId}`)
+        .then(r => r.json())
+        .then(job => updateUI(job, jobId))
+        .catch(() => {});
+    }, 1200);
+  }
+
+  function updateUI(job, jobId) {
+    const badge = document.getElementById('statusBadge');
+    const bar = document.getElementById('progressBar');
+    const log = document.getElementById('procLog');
+
+    // Status badge
+    const statusMap = {
+      queued: ['AGUARDANDO', 'status-queued'],
+      processing: ['PROCESSANDO', 'status-processing'],
+      done: ['CONCLUIDO', 'status-done'],
+      error: ['ERRO', 'status-error'],
+    };
+    const [label, cls] = statusMap[job.status] || ['—', 'status-queued'];
+    badge.className = `status-badge ${cls}`;
+    badge.textContent = label;
+
+    // Progress
+    bar.style.width = job.progress + '%';
+
+    // Log
+    if (job.log && job.log.length) {
+      log.innerHTML = job.log.map(l => {
+        if (l.startsWith('[OK]')) return `<div class="log-ok">${l}</div>`;
+        if (l.startsWith('[AVISO]')) return `<div class="log-warn">${l}</div>`;
+        if (l.startsWith('[ERRO]')) return `<div class="log-err">${l}</div>`;
+        return `<div>${l}</div>`;
+      }).join('');
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Done
+    if (job.status === 'done') {
+      clearInterval(pollInterval);
+      bar.style.width = '100%';
+
+      // Resolution info
+      if (job.resolution_in && job.resolution_out) {
+        document.getElementById('resIn').textContent = job.resolution_in;
+        document.getElementById('resOut').textContent = job.resolution_out;
+        document.getElementById('resInfo').style.display = 'flex';
+      }
+
+      // Outputs
+      const grid = document.getElementById('outputsGrid');
+      grid.style.display = 'grid';
+      const colors = ['output-v1','output-v2','output-v3'];
+      const labels = ['V1 — LEVE','V2 — MÉDIO','V3 — FORTE'];
+      grid.innerHTML = job.outputs.map((o, i) => `
+        <div class="output-item ${colors[i]}">
+          <div class="output-label">${labels[i]}</div>
+          <div class="output-name">${o.filename}</div>
+          <div class="output-meta">${o.resolution} · ${(o.size/1024/1024).toFixed(1)}MB</div>
+          <a class="btn-download" href="/download/${jobId}/${o.filename}" download>
+            ↓ Baixar
+          </a>
+        </div>
+      `).join('');
+    }
+
+    if (job.status === 'error') {
+      clearInterval(pollInterval);
+      log.innerHTML += `<div class="log-err">ERRO: ${job.error}</div>`;
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('statusBadge').className = 'status-badge status-error';
+    document.getElementById('statusBadge').textContent = 'ERRO';
+    document.getElementById('procLog').innerHTML = `<div class="log-err">${msg}</div>`;
+  }
+</script>
+</body>
+</html>
