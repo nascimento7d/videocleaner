@@ -48,7 +48,7 @@ def build_scale(w, h):
 def run_ffmpeg(cmd, job, label):
     job['log'].append(f'Rodando {label}...')
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
         if result.returncode != 0:
             err_lines = [l for l in result.stderr.split('\n') 
                         if l.strip() and ('Error' in l or 'Invalid' in l or 'failed' in l)]
@@ -123,7 +123,7 @@ def process_video(job_id, input_path, basename, output_dir):
         cmd2 = ['ffmpeg', '-y', '-ss', '0.05', '-i', input_path,
                 '-map_metadata', '-1', '-map_chapters', '-1',
                 '-vf', vf2,
-                '-c:v', 'libx264', '-crf', '22', '-preset', 'medium', '-b:v', '5M',
+                '-c:v', 'libx264', '-crf', '22', '-preset', 'faster', '-b:v', '5M',
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
                 '-af', 'volume=0.98',
                 '-movflags', '+faststart',
@@ -138,7 +138,7 @@ def process_video(job_id, input_path, basename, output_dir):
         cmd3 = ['ffmpeg', '-y', '-ss', '0.1', '-i', input_path,
                 '-map_metadata', '-1', '-map_chapters', '-1',
                 '-vf', vf3,
-                '-c:v', 'libx264', '-crf', '23', '-preset', 'slow', '-b:v', '4500k',
+                '-c:v', 'libx264', '-crf', '23', '-preset', 'fast', '-b:v', '4500k',
                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
                 '-af', 'volume=0.97',
                 '-movflags', '+faststart',
