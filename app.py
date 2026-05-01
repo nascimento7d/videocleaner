@@ -2,20 +2,17 @@ import os
 import uuid
 import subprocess
 import threading
-import time
 import json
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file, url_for
+from flask import Flask, render_template, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['PROCESSED_FOLDER'] = 'processed'
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
+app.config['PROCESSED_FOLDER'] = '/tmp/processed'
 
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
-
-# Job store in memory
 jobs = {}
 
 def allowed_file(filename):
@@ -30,7 +27,10 @@ def get_resolution(filepath):
     if result.returncode == 0:
         parts = result.stdout.strip().split(',')
         if len(parts) == 2:
-            return int(parts[0]), int(parts[1])
+            try:
+                return int(parts[0]), int(parts[1])
+            except:
+                pass
     return 1080, 1080
 
 def build_scale_filter(w, h):
@@ -39,12 +39,12 @@ def build_scale_filter(w, h):
             out_w = 1080
             out_h = int((h * 1080) / w)
             out_h = (out_h // 2) * 2
-            return f"scale=1080:-2:flags=lanczos,", out_w, out_h
+            return "scale=1080:-2:flags=lanczos,", out_w, out_h
         else:
             out_h = 1080
             out_w = int((w * 1080) / h)
             out_w = (out_w // 2) * 2
-            return f"scale=-2:1080:flags=lanczos,", out_w, out_h
+            return "scale=-2:1080:flags=lanczos,", out_w, out_h
     return "", w, h
 
 def process_video(job_id, input_path, basename, output_dir):
@@ -62,9 +62,9 @@ def process_video(job_id, input_path, basename, output_dir):
         scale_filter, out_w, out_h = build_scale_filter(w, h)
 
         if scale_filter:
-            log(f"Upscale necessario -> {out_w}x{out_h}")
+            log(f"[AVISO] Upscale para {out_w}x{out_h} (minimo Meta Ads)")
         else:
-            log("Resolucao ok para Meta Ads")
+            log("Resolucao OK para Meta Ads")
 
         now = datetime.utcnow()
         micro = now.strftime("%f")[:3]
@@ -81,22 +81,19 @@ def process_video(job_id, input_path, basename, output_dir):
                 "name": "v1", "label": "Leve",
                 "args": ["-crf", "20", "-preset", "medium"],
                 "vf": f"{scale_filter}format=yuv420p",
-                "af": None,
-                "ss": None,
+                "af": None, "ss": None,
             },
             {
                 "name": "v2", "label": "Medio",
                 "args": ["-crf", "22", "-preset", "medium", "-b:v", "5M"],
                 "vf": f"{scale_filter}crop={out_w-8}:{out_h-8}:4:4,scale={out_w}:{out_h}:flags=lanczos,eq=brightness=0.02:saturation=1.03:contrast=1.02,format=yuv420p",
-                "af": "volume=0.98",
-                "ss": "0.05",
+                "af": "volume=0.98", "ss": "0.05",
             },
             {
                 "name": "v3", "label": "Forte",
                 "args": ["-crf", "23", "-preset", "slow", "-b:v", "4500k"],
                 "vf": f"{scale_filter}crop={out_w-16}:{out_h-16}:8:8,scale=iw*1.015:ih*1.015:flags=lanczos,crop={out_w}:{out_h},eq=brightness=0.03:saturation=1.05:gamma=1.02,format=yuv420p",
-                "af": "atempo=1.005,volume=0.97",
-                "ss": "0.1",
+                "af": "atempo=1.005,volume=0.97", "ss": "0.1",
             },
         ]
 
@@ -133,7 +130,7 @@ def process_video(job_id, input_path, basename, output_dir):
 
             if result.returncode != 0:
                 job['status'] = 'error'
-                job['error'] = f"Erro na versao {ver['name']}: {result.stderr[-300:]}"
+                job['error'] = f"Erro na versao {ver['name']}: {result.stderr[-500:]}"
                 return
 
             size = os.path.getsize(out_path)
@@ -175,6 +172,7 @@ def upload():
     original_name = secure_filename(file.filename)
     basename = os.path.splitext(original_name)[0]
 
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     upload_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{job_id}_{original_name}")
     file.save(upload_path)
 
@@ -213,12 +211,8 @@ def download(job_id, filename):
         return jsonify({'error': 'Arquivo nao encontrado'}), 404
     return send_file(path, as_attachment=True)
 
-@app.route('/jobs')
-def list_jobs():
-    return jsonify(list(jobs.values()))
-
 if __name__ == '__main__':
-    os.makedirs('uploads', exist_ok=True)
-    os.makedirs('processed', exist_ok=True)
-   port = int(os.environ.get('PORT', 5000))
-app.run(host='0.0.0.0', port=port, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    os.makedirs('/tmp/uploads', exist_ok=True)
+    os.makedirs('/tmp/processed', exist_ok=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
